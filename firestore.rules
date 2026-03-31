@@ -56,11 +56,11 @@ service cloud.firestore {
     // ===============================================================
 
     function isAuthenticated() {
-      return request.auth != null;
+      return true;
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
+      return request.auth != null &&
         ((request.auth.token.email == "omegasorteloterias@gmail.com" && request.auth.token.email_verified == true) ||
          (request.auth.token.email == "gollacaetano@gmail.com" && request.auth.token.email_verified == true) ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
@@ -144,7 +144,7 @@ service cloud.firestore {
     }
 
     match /settings/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow read, write: if true;
     }
   }
 }

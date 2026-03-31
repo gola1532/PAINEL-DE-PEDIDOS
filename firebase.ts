@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "firebase/auth";
 import { initializeFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy, serverTimestamp, Timestamp, writeBatch, getDocFromServer, setLogLevel } from "firebase/firestore";
 import firebaseConfig from "./firebase-applet-config.json";
 
@@ -9,7 +9,6 @@ setLogLevel('error');
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  useFetchStreams: false,
 }, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -98,5 +97,6 @@ export {
   Timestamp,
   writeBatch,
   signInWithPopup,
-  signOut
+  signOut,
+  signInAnonymously
 };

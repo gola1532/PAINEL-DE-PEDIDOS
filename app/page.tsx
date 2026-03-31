@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { auth, googleProvider, signInWithPopup, signOut, db, handleFirestoreError, OperationType } from '@/firebase';
+import { auth, googleProvider, signInWithPopup, signOut, signInAnonymously, db, handleFirestoreError, OperationType } from '@/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { 
@@ -18,7 +18,8 @@ import {
   Barcode,
   Edit2,
   Check,
-  Building2
+  Building2,
+  LogIn
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Image from 'next/image';
@@ -37,6 +38,7 @@ type Tab = 'customers' | 'products' | 'orders' | 'finance' | 'calendar' | 'calcu
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('orders');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [companyName, setCompanyName] = useState('Solares');
@@ -46,23 +48,18 @@ export default function Home() {
   useEffect(() => {
     let settingsUnsubscribe: (() => void) | undefined;
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      setAuthError(null);
       setLoading(false);
       
-      if (user) {
-        // Listen to settings
-        settingsUnsubscribe = onSnapshot(doc(db, 'settings', user.uid), (doc) => {
-          if (doc.exists()) {
-            setCompanyName(doc.data().companyName || 'Solares');
-          }
-        }, (error) => handleFirestoreError(error, OperationType.GET, `settings/${user.uid}`));
-      } else {
-        if (settingsUnsubscribe) {
-          settingsUnsubscribe();
-          settingsUnsubscribe = undefined;
+      // Listen to settings - use 'public_user' as fallback if not logged in
+      const settingsId = currentUser?.uid || 'public_user';
+      settingsUnsubscribe = onSnapshot(doc(db, 'settings', settingsId), (doc) => {
+        if (doc.exists()) {
+          setCompanyName(doc.data().companyName || 'Solares');
         }
-      }
+      }, (error) => handleFirestoreError(error, OperationType.GET, `settings/${settingsId}`));
     });
 
     return () => {
@@ -72,9 +69,10 @@ export default function Home() {
   }, []);
 
   const saveCompanyName = async () => {
-    if (!user || !tempName.trim()) return;
+    const settingsId = user?.uid || 'public_user';
+    if (!tempName.trim()) return;
     try {
-      await setDoc(doc(db, 'settings', user.uid), {
+      await setDoc(doc(db, 'settings', settingsId), {
         companyName: tempName.trim()
       }, { merge: true });
       setIsEditingName(false);
@@ -112,31 +110,6 @@ export default function Home() {
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
           className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full"
         />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-500 to-orange-600 p-4">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center"
-        >
-          <div className="w-24 h-24 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Package size={48} className="text-orange-500" />
-          </div>
-          <h1 className="text-3xl font-black text-gray-800 mb-2">Solares Chinelos</h1>
-          <p className="text-gray-500 mb-8 font-medium">Gestão de vendas simples e moderna para o seu negócio.</p>
-          <button 
-            onClick={handleLogin}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-3"
-          >
-            <Image src="https://www.google.com/favicon.ico" alt="Google" width={20} height={20} />
-            Entrar com Google
-          </button>
-        </motion.div>
       </div>
     );
   }
@@ -221,27 +194,46 @@ export default function Home() {
 
         <div className="mt-auto pt-6 border-t border-gray-50">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-100">
-              <Image 
-                src={user.photoURL || 'https://picsum.photos/seed/user/100/100'} 
-                alt={user.displayName || 'User'} 
-                width={40} 
-                height={40} 
-                referrerPolicy="no-referrer"
-              />
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-100 bg-gray-100 flex items-center justify-center">
+              {!user || user.isAnonymous ? (
+                <Users size={20} className="text-gray-400" />
+              ) : (
+                <Image 
+                  src={user.photoURL || 'https://picsum.photos/seed/user/100/100'} 
+                  alt={user.displayName || 'User'} 
+                  width={40} 
+                  height={40} 
+                  referrerPolicy="no-referrer"
+                />
+              )}
             </div>
             <div className="flex-grow overflow-hidden">
-              <p className="text-sm font-bold text-gray-800 truncate">{user.displayName}</p>
-              <p className="text-xs text-gray-400 truncate">{user.email}</p>
+              <p className="text-sm font-bold text-gray-800 truncate">
+                {!user ? 'Modo Público' : user.isAnonymous ? 'Modo Visitante' : user.displayName}
+              </p>
+              <p className="text-xs text-gray-400 truncate">
+                {!user ? 'Acesso Livre' : user.isAnonymous ? 'Dados salvos localmente' : user.email}
+              </p>
             </div>
           </div>
-          <button 
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"
-          >
-            <LogOut size={20} />
-            Sair
-          </button>
+          
+          {!user || user.isAnonymous ? (
+            <button 
+              onClick={handleLogin}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-orange-500 bg-orange-50 hover:bg-orange-100 transition-all"
+            >
+              <LogIn size={20} />
+              Conectar Google
+            </button>
+          ) : (
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"
+            >
+              <LogOut size={20} />
+              Sair
+            </button>
+          )}
         </div>
       </aside>
 
@@ -270,9 +262,15 @@ export default function Home() {
             </div>
           )}
         </div>
-        <button onClick={handleLogout} className="text-gray-400 p-2">
-          <LogOut size={20} />
-        </button>
+        {!user || user.isAnonymous ? (
+          <button onClick={handleLogin} className="text-orange-500 p-2">
+            <LogIn size={20} />
+          </button>
+        ) : (
+          <button onClick={handleLogout} className="text-gray-400 p-2">
+            <LogOut size={20} />
+          </button>
+        )}
       </header>
 
       {/* Main Content */}
