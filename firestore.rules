@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: customers
+    // Fields:
+    //   - name: string (required)
+    //   - phone: string (required)
+    //   - email: string (optional)
+    //   - address: string (optional)
+    //   - cnpj_cpf: string (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: products
+    // Fields:
+    //   - name: string (required)
+    //   - category: string (optional)
+    //   - costPrice: number (optional)
+    //   - salePrice: number (required)
+    //   - stock: number (required)
+    //   - imageUrl: string (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: orders
+    // Fields:
+    //   - customerId: string (required)
+    //   - customerName: string (required)
+    //   - items: list (required)
+    //   - total: number (required)
+    //   - status: string (required, enum: ['pending', 'paid', 'cancelled'])
+    //   - deliveryDate: timestamp (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: finance
+    // Fields:
+    //   - type: string (required, enum: ['income', 'expense'])
+    //   - amount: number (required)
+    //   - description: string (optional)
+    //   - date: timestamp (required)
+    //   - orderId: string (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: users
+    // Fields:
+    //   - role: string (required, enum: ['admin', 'user'])
+    //   - email: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((request.auth.token.email == "omegasorteloterias@gmail.com" && request.auth.token.email_verified == true) ||
+         (request.auth.token.email == "gollacaetano@gmail.com" && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['name', 'phone']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+        data.phone is string && data.phone.size() > 0 && data.phone.size() < 20;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'salePrice', 'stock']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+        data.salePrice is number && data.salePrice >= 0 &&
+        data.stock is number && data.stock >= 0;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['customerId', 'items', 'total', 'status']) &&
+        data.customerId is string &&
+        data.items is list &&
+        data.total is number && data.total >= 0 &&
+        data.status in ['pending', 'paid', 'cancelled'];
+    }
+
+    function isValidFinanceEntry(data) {
+      return data.keys().hasAll(['type', 'amount', 'date']) &&
+        data.type in ['income', 'expense'] &&
+        data.amount is number && data.amount >= 0;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCustomer(request.resource.data);
+      allow update: if isAuthenticated() && isValidCustomer(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data);
+      allow update: if isAuthenticated() && isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /finance/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidFinanceEntry(request.resource.data);
+      allow update: if isAuthenticated() && isValidFinanceEntry(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create, update: if isAdmin();
+    }
+
+    match /settings/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}

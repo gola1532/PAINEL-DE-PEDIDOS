@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "Customer": {
+      "title": "Customer",
+      "description": "A customer of the sales management app.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "cnpj_cpf": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A product available for sale.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "costPrice": { "type": "number" },
+        "salePrice": { "type": "number" },
+        "stock": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "salePrice", "stock"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A sales order.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "paid", "cancelled"] },
+        "deliveryDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "items", "total", "status"]
+    },
+    "FinanceEntry": {
+      "title": "FinanceEntry",
+      "description": "A financial transaction entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "orderId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "amount", "date"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Application settings for the user.",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/customers/{customerId}": { "schema": "Customer", "description": "Collection of customers." },
+    "/products/{productId}": { "schema": "Product", "description": "Collection of products." },
+    "/orders/{orderId}": { "schema": "Order", "description": "Collection of orders." },
+    "/finance/{entryId}": { "schema": "FinanceEntry", "description": "Collection of financial entries." },
+    "/settings/{userId}": { "schema": "Settings", "description": "User specific settings." }
+  }
+}
